@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>饼图看板</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: "Microsoft YaHei", Arial, sans-serif; background: #f5f7fa; padding: 20px; }
+        .charts-row { display: flex; gap: 20px; margin-bottom: 20px; }
+        .chart-card { background: #fff; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); padding: 20px; flex: 1; min-width: 0; }
+        .chart-title-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .chart-title-input:focus { outline: none; border-color: #409eff; }
+        .chart-dom { width: 100%; height: 500px; }
+        .control-panel {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+            padding: 20px;
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .control-section { flex: 1; min-width: 300px; }
+        .control-section h3 { margin-bottom: 15px; color: #333; font-size: 16px; }
+        .form-group { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
+        .form-item { display: flex; flex-direction: column; min-width: 140px; flex: 1; }
+        .form-item label { font-size: 13px; color: #666; margin-bottom: 4px; }
+        .form-item input { padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; }
+        .form-item input:focus { outline: none; border-color: #409eff; }
+        .btn-group { display: flex; gap: 10px; }
+        .btn { padding: 8px 18px; border: none; border-radius: 4px; font-size: 13px; cursor: pointer; transition: all 0.3s; }
+        .btn-primary { background: #409eff; color: #fff; }
+        .btn-primary:hover { background: #66b1ff; }
+        .btn-default { background: #f0f0f0; color: #333; }
+        .btn-default:hover { background: #e0e0e0; }
+    </style>
+</head>
+<body>
+    <div class="charts-row">
+        <div class="chart-card">
+            <input type="text" class="chart-title-input" id="title1" value="人工粉末筛选分类" oninput="updateTitle1()">
+            <div id="chart1" class="chart-dom"></div>
+        </div>
+        <div class="chart-card">
+            <input type="text" class="chart-title-input" id="title2" value="不能舀分类" oninput="updateTitle2()">
+            <div id="chart2" class="chart-dom"></div>
+        </div>
+    </div>
+
+    <div class="control-panel">
+        <div class="control-section">
+            <h3>人工粉末筛选分类 - 数据更新</h3>
+            <div class="form-group">
+                <div class="form-item"><label>已判断</label><input type="number" id="judged" value="4046"></div>
+                <div class="form-item"><label>待验证</label><input type="number" id="pending" value="1366"></div>
+            </div>
+            <div class="form-group">
+                <div class="form-item"><label>能舀</label><input type="number" id="canScoop" value="1215"></div>
+                <div class="form-item"><label>不能舀</label><input type="number" id="cannotScoop" value="2821"></div>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="updateChart1()">更新图表1</button>
+                <button class="btn btn-default" onclick="resetData1()">重置数据</button>
+            </div>
+        </div>
+        <div class="control-section">
+            <h3>不能舀分类 - 数据更新</h3>
+            <div class="form-group">
+                <div class="form-item"><label>固体（颗粒大、粘性强、絮状、强静电等）</label><input type="number" id="solid" value="2152"></div>
+                <div class="form-item"><label>液体</label><input type="number" id="liquid" value="669"></div>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="updateChart2()">更新图表2</button>
+                <button class="btn btn-default" onclick="resetData2()">重置数据</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        var chart1Dom = document.getElementById('chart1');
+        var chart1 = echarts.init(chart1Dom);
+        var chart2Dom = document.getElementById('chart2');
+        var chart2 = echarts.init(chart2Dom);
+
+        var defaultData1 = {
+            judged: 4046,
+            pending: 1366,
+            canScoop: 1215,
+            cannotScoop: 2821
+        };
+
+        var defaultData2 = {
+            solid: 2152,
+            liquid: 669
+        };
+
+        var title1Text = '人工粉末筛选分类';
+        var title2Text = '不能舀分类';
+
+        function getChart1Option(data) {
+            var judgedSubTotal = data.canScoop + data.cannotScoop;
+            var scale = judgedSubTotal > 0 ? data.judged / judgedSubTotal : 1;
+            var scaledCanScoop = Math.round(data.canScoop * scale);
+            var scaledCannotScoop = data.judged - scaledCanScoop;
+
+            var innerData = [
+                { value: data.judged, name: '已判断', itemStyle: { color: '#5470c6' } },
+                { value: data.pending, name: '待验证', itemStyle: { color: '#91cc75' } }
+            ];
+
+            var outerData = [
+                { value: scaledCanScoop, name: '能舀', realValue: data.canScoop, itemStyle: { color: '#73a0fa' } },
+                { value: scaledCannotScoop, name: '不能舀', realValue: data.cannotScoop, itemStyle: { color: '#3b5bdb' } },
+                { value: data.pending, name: '待验证', realValue: data.pending, itemStyle: { color: '#91cc75' } }
+            ];
+
+            return {
+                tooltip: {
+                    trigger: 'item',
+                    formatter: function(params) {
+                        var val = params.data.realValue !== undefined ? params.data.realValue : params.value;
+                        return params.name + '<br/>数量: ' + val + '<br/>占比: ' + params.percent + '%';
+                    }
+                },
+                legend: {
+                    orient: 'vertical',
+                    right: '5%',
+                    top: 'center',
+                    itemGap: 12
+                },
+                series: [
+                    {
+                        name: '主分类',
+                        type: 'pie',
+                        radius: ['0%', '50%'],
+                        center: ['50%', '50%'],
+                        label: {
+                            position: 'inner',
+                            fontSize: 13,
+                            fontWeight: 'bold',
+                            color: '#fff',
+                            formatter: function(params) {
+                                return params.name + '\n' + params.value + '\n(' + params.percent + '%)';
+                            }
+                        },
+                        labelLine: { show: false },
+                        data: innerData,
+                        itemStyle: { borderColor: '#fff', borderWidth: 2 }
+                    },
+                    {
+                        name: '细分',
+                        type: 'pie',
+                        radius: ['50%', '75%'],
+                        center: ['50%', '50%'],
+                        avoidLabelOverlap: false,
+                        labelLayout: { hideOverlap: false },
+                        label: {
+                            show: true,
+                            position: 'outside',
+                            formatter: function(params) {
+                                var val = params.data.realValue !== undefined ? params.data.realValue : params.value;
+                                return params.name + '\n' + val + ' (' + params.percent + '%)';
+                            },
+                            fontSize: 12,
+                            color: '#333'
+                        },
+                        labelLine: {
+                            show: true,
+                            length: 15,
+                            length2: 20,
+                            smooth: true
+                        },
+                        data: outerData,
+                        itemStyle: { borderColor: '#fff', borderWidth: 2 }
+                    }
+                ]
+            };
+        }
+
+        function getChart2Option(data) {
+            var pieData = [
+                { value: data.solid, name: '固体（颗粒大、粘性强、絮状、强静电等）', itemStyle: { color: '#52d1f5' } },
+                { value: data.liquid, name: '液体', itemStyle: { color: '#5470c6' } }
+            ];
+
+            return {
+                tooltip: {
+                    trigger: 'item',
+                    formatter: function(params) {
+                        return params.name + '<br/>数量: ' + params.value + '<br/>占比: ' + params.percent + '%';
+                    }
+                },
+                legend: {
+                    orient: 'vertical',
+                    right: '5%',
+                    top: 'center',
+                    itemGap: 12
+                },
+                series: [
+                    {
+                        name: '不能舀分类',
+                        type: 'pie',
+                        radius: '58%',
+                        center: ['40%', '50%'],
+                        avoidLabelOverlap: false,
+                        labelLayout: { hideOverlap: false },
+                        label: {
+                            show: true,
+                            position: 'outside',
+                            formatter: function(params) {
+                                return params.name + '\n' + params.value + ' (' + params.percent + '%)';
+                            },
+                            fontSize: 12,
+                            color: '#333'
+                        },
+                        labelLine: {
+                            show: true,
+                            length: 15,
+                            length2: 20,
+                            smooth: true
+                        },
+                        data: pieData,
+                        itemStyle: { borderColor: '#fff', borderWidth: 2 }
+                    }
+                ]
+            };
+        }
+
+        function updateTitle1() {
+            title1Text = document.getElementById('title1').value;
+            updateChart1();
+        }
+
+        function updateTitle2() {
+            title2Text = document.getElementById('title2').value;
+            updateChart2();
+        }
+
+        function updateChart1() {
+            var judged = parseInt(document.getElementById('judged').value) || 0;
+            var pending = parseInt(document.getElementById('pending').value) || 0;
+            var canScoop = parseInt(document.getElementById('canScoop').value) || 0;
+            var cannotScoop = parseInt(document.getElementById('cannotScoop').value) || 0;
+
+            var data = {
+                judged: judged,
+                pending: pending,
+                canScoop: canScoop,
+                cannotScoop: cannotScoop
+            };
+
+            chart1.setOption(getChart1Option(data), true);
+        }
+
+        function resetData1() {
+            document.getElementById('judged').value = defaultData1.judged;
+            document.getElementById('pending').value = defaultData1.pending;
+            document.getElementById('canScoop').value = defaultData1.canScoop;
+            document.getElementById('cannotScoop').value = defaultData1.cannotScoop;
+            updateChart1();
+        }
+
+        function updateChart2() {
+            var solid = parseInt(document.getElementById('solid').value) || 0;
+            var liquid = parseInt(document.getElementById('liquid').value) || 0;
+
+            var data = {
+                solid: solid,
+                liquid: liquid
+            };
+
+            chart2.setOption(getChart2Option(data), true);
+        }
+
+        function resetData2() {
+            document.getElementById('solid').value = defaultData2.solid;
+            document.getElementById('liquid').value = defaultData2.liquid;
+            updateChart2();
+        }
+
+        chart1.setOption(getChart1Option(defaultData1));
+        chart2.setOption(getChart2Option(defaultData2));
+
+        window.addEventListener('resize', function() {
+            chart1.resize();
+            chart2.resize();
+        });
+    </script>
+</body>
+</html>
